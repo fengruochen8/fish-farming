@@ -1,7 +1,7 @@
 import uiautomator2 as u2
 import time
 import random
-from behaviors import unlock_device, swipe_videos, search_and_watch
+from behaviors import unlock_device, swipe_video, search_and_watch
 
 def get_device_ids(file_path):
     with open(file_path, 'r') as file:
@@ -25,7 +25,7 @@ def main():
             d.app_start("com.ss.android.ugc.aweme")
 
             # 执行滑动观看视频操作
-            swipe_videos(d, num_swipes=5)
+            swipe_video(d, num_swipes=5)
 
             # 执行搜索和观看操作
             search_and_watch(d, search_text="弹幕游戏")

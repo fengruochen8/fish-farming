@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import threading
 import time
 import uiautomator2 as u2
