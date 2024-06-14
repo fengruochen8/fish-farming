@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>控制页面</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>控制页面</h1>
+    <form action="/start" method="post">
+        <button type="submit">开始</button>
+    </form>
+    <form action="/stop" method="post">
+        <button type="submit">停止</button>
+    </form>
+    <h2>日志</h2>
+    <div id="log-container" style="border:1px solid #000; padding:10px; width:80%; height:400px; overflow:auto;"></div>
+
+    <script>
+        function fetchLogs() {
+            $.get('/logs', function(data) {
+                $('#log-container').html(data.join('<br>'));
+            });
+        }
+
+        setInterval(fetchLogs, 3000); // 每3秒刷新一次日志
+    </script>
+</body>
+</html>
