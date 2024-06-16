@@ -1,12 +1,11 @@
 import tkinter as tk
 from tkinter import scrolledtext
 from threading import Thread, Event
-import time
-import random
 import logging
 import queue
-import uiautomator2 as u2
 import subprocess
+import uiautomator2 as u2
+from behaviors.fine_fish import fine_fish, swipe_videos
 
 # 设置日志
 log_queue = queue.Queue()
@@ -49,35 +48,6 @@ device_manager = DeviceManager()
 
 stop_event = Event()
 
-def unlock_device(device):
-    device.screen_on()
-    time.sleep(2)
-    if not device.info.get('screenOn'):
-        device.unlock()
-    if not device.info.get('screenOn'):
-        device.swipe(0.5, 0.9, 0.5, 0.1)
-    time.sleep(1)
-
-def open_tiktok(device):
-    device.app_start("com.ss.android.ugc.aweme")
-    time.sleep(5)
-
-def swipe_videos(device, stop_event):
-    unlock_device(device)
-    open_tiktok(device)
-    total_watch_time = 0
-    for i in range(1000):
-        if stop_event.is_set():
-            logging.info(f"设备 {device.serial} 操作已停止")
-            break
-        watch_time = random.randint(15, 40)
-        logging.info(f"设备 {device.serial} 正在观看第 {i+1} 个视频，观看时间: {watch_time} 秒，总观看时间: {total_watch_time + watch_time} 秒")
-        time.sleep(watch_time)
-        total_watch_time += watch_time
-        device.swipe(0.5, 0.8, 0.5, 0.2)
-        time.sleep(2)
-    logging.info(f"设备 {device.serial} 完成观看，总观看时间: {total_watch_time} 秒")
-
 def start_operation():
     device_manager.update_device_list()
     devices = device_manager.get_connected_devices()
@@ -85,14 +55,26 @@ def start_operation():
         logging.info("没有连接的设备")
         return
 
+    logging.info(f"当前连接的设备数量: {len(devices)}")
+    for device in devices:
+        logging.info(f"设备ID: {device.serial}")
+
     stop_event.clear()
     threads = []
     for device in devices:
-        t = Thread(target=swipe_videos, args=(device, stop_event))
+        if fine_fish_flag.get():
+            t = Thread(target=fine_fish, args=(device, stop_event))
+        else:
+            t = Thread(target=swipe_videos, args=(device, stop_event))
         t.start()
         threads.append(t)
 
+    # 等待所有线程结束
+    for t in threads:
+        t.join()
+
 def stop_operation():
+    logging.info("停止操作中...")
     stop_event.set()
 
 def update_log():
@@ -112,6 +94,10 @@ start_button.pack(pady=5)
 
 stop_button = tk.Button(root, text="停止", command=stop_operation)
 stop_button.pack(pady=5)
+
+fine_fish_flag = tk.BooleanVar()
+fine_fish_checkbox = tk.Checkbutton(root, text="精细化养鱼", variable=fine_fish_flag)
+fine_fish_checkbox.pack(pady=5)
 
 log_text = scrolledtext.ScrolledText(root, width=80, height=20)
 log_text.pack(pady=10)
