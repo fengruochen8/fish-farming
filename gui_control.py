@@ -47,6 +47,7 @@ class DeviceManager:
 device_manager = DeviceManager()
 
 stop_event = Event()
+threads = []
 
 def start_operation():
     device_manager.update_device_list()
@@ -60,22 +61,27 @@ def start_operation():
         logging.info(f"设备ID: {device.serial}")
 
     stop_event.clear()
+    global threads
     threads = []
     for device in devices:
         if fine_fish_flag.get():
-            t = Thread(target=fine_fish, args=(device, stop_event))
+            t = Thread(target=fine_fish, args=(device, stop_event, update_recognition_count))
         else:
             t = Thread(target=swipe_videos, args=(device, stop_event))
         t.start()
         threads.append(t)
 
-    # 等待所有线程结束
-    for t in threads:
-        t.join()
-
 def stop_operation():
-    logging.info("停止操作中...")
     stop_event.set()
+    for thread in threads:
+        if thread.is_alive():
+            thread.join()
+    logging.info("停止按钮被点击，所有操作已终止")
+
+def update_recognition_count():
+    global recognition_count
+    recognition_count += 1
+    recognition_count_label.config(text=f"识别成功次数: {recognition_count}")
 
 def update_log():
     while not log_queue.empty():
@@ -89,10 +95,14 @@ def update_log():
 root = tk.Tk()
 root.title("抖音自动操作")
 
+recognition_count = 0
+recognition_count_label = tk.Label(root, text=f"识别成功次数: {recognition_count}")
+recognition_count_label.pack(pady=5)
+
 start_button = tk.Button(root, text="开始", command=lambda: Thread(target=start_operation).start())
 start_button.pack(pady=5)
 
-stop_button = tk.Button(root, text="停止", command=stop_operation)
+stop_button = tk.Button(root, text="停止", command=lambda: Thread(target=stop_operation).start())
 stop_button.pack(pady=5)
 
 fine_fish_flag = tk.BooleanVar()
