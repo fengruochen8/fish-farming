@@ -1,118 +1,144 @@
-import tkinter as tk
-from tkinter import scrolledtext
-from threading import Thread, Event
+import time
+import random
 import logging
-import queue
-import subprocess
+import threading
+from paddleocr import PaddleOCR
+import numpy as np
+from PIL import Image
+import io
 import uiautomator2 as u2
-from behaviors.fine_fish import fine_fish, swipe_videos
+from behaviors.device_utils import initialize_device, get_connected_devices
 
-# 设置日志
-log_queue = queue.Queue()
+# 初始化OCR
+ocr = PaddleOCR(use_angle_cls=True, lang='ch')
 
-class QueueHandler(logging.Handler):
-    def __init__(self, log_queue):
-        super().__init__()
-        self.log_queue = log_queue
+def fine_fish(device, stop_event, update_recognition_count):
+    video_count = 0
+    total_watch_time = 0
 
-    def emit(self, record):
-        self.log_queue.put(self.format(record))
+    # 启动抖音应用
+    logging.info(f"设备 {device.serial} 启动抖音应用")
+    device.app_start("com.ss.android.ugc.aweme")
+    time.sleep(5)  # 等待抖音启动
 
-log_handler = QueueHandler(log_queue)
-logging.basicConfig(level=logging.INFO, handlers=[log_handler], format='%(asctime)s - %(message)s')
+    while not stop_event.is_set():
+        video_count += 1
+        watch_time = random.randint(15, 35)
+        total_watch_time += watch_time
 
-class DeviceManager:
-    def __init__(self):
-        self.devices = []
-        self.device_status = {}
+        logging.info(f"设备 {device.serial} 正在观看第 {video_count} 个视频，观看时间: {watch_time} 秒，总观看时间: {total_watch_time} 秒")
 
-    def update_device_list(self):
-        result = subprocess.run(["adb", "devices"], capture_output=True, text=True)
-        device_ids = [line.split()[0] for line in result.stdout.splitlines() if line.endswith("device")]
+        time.sleep(5)  # 先等待5秒再进行OCR识别
 
-        self.devices = []
-        self.device_status = {}
+        logging.info("开始捕捉屏幕...")
+        try:
+            # 使用screencap命令直接保存截图到文件
+            screenshot_file = f"/sdcard/{device.serial}_screenshot.png"
+            local_screenshot_file = f"{device.serial}_screenshot.png"
+            device.shell(f"screencap -p {screenshot_file}")
+            device.pull(screenshot_file, local_screenshot_file)
 
-        for device_id in device_ids:
+            with open(local_screenshot_file, 'rb') as f:
+                raw_screenshot = f.read()
+
+            if raw_screenshot is None:
+                raise ValueError(f"设备 {device.serial} 截图失败，screenshot 为 None")
+
+            logging.debug(f"原始截图长度: {len(raw_screenshot)}")
+
             try:
-                device = u2.connect(device_id)
-                self.devices.append(device)
-                self.device_status[device_id] = True
-            except u2.exceptions.ConnectError:
-                self.device_status[device_id] = False
+                screenshot = Image.open(io.BytesIO(raw_screenshot)).convert("RGB")
+            except Exception as e:
+                logging.error(f"设备 {device.serial} 的图像转换失败: {e}")
+                time.sleep(5)
+                continue
 
-    def get_connected_devices(self):
-        return [device for device in self.devices if self.device_status[device.serial]]
+            screenshot = np.array(screenshot)
 
-device_manager = DeviceManager()
+            logging.info("屏幕捕捉成功")
 
-stop_event = Event()
-threads = []
+            x1, y1 = 0, 200
+            x2, y2 = screenshot.shape[1], 1200
+            cropped_img = screenshot[y1:y2, x1:x2]
 
-def start_operation():
-    device_manager.update_device_list()
-    devices = device_manager.get_connected_devices()
-    if not devices:
-        logging.info("没有连接的设备")
-        return
+            result = ocr.ocr(cropped_img, cls=True)
 
-    logging.info(f"当前连接的设备数量: {len(devices)}")
-    for device in devices:
-        logging.info(f"设备ID: {device.serial}")
+            if not result or not result[0]:
+                logging.warning(f"设备 {device.serial} OCR 结果为空或无效，跳过该次循环")
+                device.swipe_ext("up", scale=0.8)
+                time.sleep(watch_time)
+                continue
 
-    stop_event.clear()
-    global threads
-    threads = []
-    for device in devices:
-        if fine_fish_flag.get():
-            t = Thread(target=fine_fish, args=(device, stop_event, update_recognition_count))
-        else:
-            t = Thread(target=swipe_videos, args=(device, stop_event))
-        t.start()
-        threads.append(t)
+            texts = [line[1][0] for line in result[0]]
+            logging.info(f"OCR识别文本: {texts}")
 
-def stop_operation():
-    stop_event.set()
-    for thread in threads:
-        if thread.is_alive():
-            thread.join()
-    logging.info("停止按钮被点击，所有操作已终止")
+            if any(keyword in text for text in texts for keyword in ["积分池", "羊羊对决", "召唤", "弹幕游戏", "互动游戏", "弹幕互动", "互动弹幕游戏", "推力", "连胜", "积分"]):
+                logging.info(f"设备 {device.serial} 识别结果包含关键字，点击控件")
+                update_recognition_count()
+                time.sleep(random.randint(1, 3))  # 随机等待1-3秒后点击
+                try:
+                    device(resourceId="com.ss.android.ugc.aweme:id/ew5").click()
+                except Exception as e:
+                    logging.info(f"当前视频检测为“简易直播间”类型，稍后进入直播间，观看直播。")
+                    try:
+                        device(resourceId="com.ss.android.ugc.aweme:id/iw2").click()
+                        time.sleep(3)
+                        for _ in range(4):
+                            device.click(371, 955)  # 或者 device.double_click(371, 955)
+                            device.click(769, 1240)
+                            time.sleep(0.5)  # 每次点击后稍等片刻
 
-def update_recognition_count():
-    global recognition_count
-    recognition_count += 1
-    recognition_count_label.config(text=f"识别成功次数: {recognition_count}")
+                        time.sleep(random.randint(300, 600))  # 随机观看5-10分钟
 
-def update_log():
-    while not log_queue.empty():
-        log_text.config(state=tk.NORMAL)
-        log_text.insert(tk.END, log_queue.get() + '\n')
-        log_text.config(state=tk.DISABLED)
-        log_text.yview(tk.END)
-    log_text.after(1000, update_log)
+                        device(resourceId="com.ss.android.ugc.aweme:id/root").click()
+                        time.sleep(1)
+                        device.swipe(597, 1803, 591, 498, duration=0.5)
+                    except Exception as e:
+                        logging.error(f"处理设备 {device.serial} 时发生错误: {e}")
+                        continue
+            else:
+                logging.info(f"设备 {device.serial} 识别结果不包含关键字，继续滑动视频")
+                device.swipe_ext("up", scale=0.8)
 
-# 创建GUI
-root = tk.Tk()
-root.title("抖音自动操作")
+            time.sleep(watch_time)
+            if stop_event.is_set():
+                break
+        except Exception as e:
+            logging.error(f"处理设备 {device.serial} 时发生错误: {e}")
+            time.sleep(5)
 
-recognition_count = 0
-recognition_count_label = tk.Label(root, text=f"识别成功次数: {recognition_count}")
-recognition_count_label.pack(pady=5)
+def swipe_videos(device, stop_event):
+    video_count = 0
+    total_watch_time = 0
 
-start_button = tk.Button(root, text="开始", command=lambda: Thread(target=start_operation).start())
-start_button.pack(pady=5)
+    # 启动抖音应用
+    logging.info(f"设备 {device.serial} 启动抖音应用")
+    device.app_start("com.ss.android.ugc.aweme")
+    time.sleep(5)  # 等待抖音启动
 
-stop_button = tk.Button(root, text="停止", command=lambda: Thread(target=stop_operation).start())
-stop_button.pack(pady=5)
+    while not stop_event.is_set():
+        video_count += 1
+        watch_time = random.randint(15, 35)
+        total_watch_time += watch_time
 
-fine_fish_flag = tk.BooleanVar()
-fine_fish_checkbox = tk.Checkbutton(root, text="精细化养鱼", variable=fine_fish_flag)
-fine_fish_checkbox.pack(pady=5)
+        logging.info(f"设备 {device.serial} 正在观看第 {video_count} 个视频，观看时间: {watch_time} 秒，总观看时间: {total_watch_time} 秒")
 
-log_text = scrolledtext.ScrolledText(root, width=80, height=20)
-log_text.pack(pady=10)
-log_text.config(state=tk.DISABLED)
+        time.sleep(watch_time)
+        device.swipe_ext("up", scale=0.8)
+        if stop_event.is_set():
+            break
 
-update_log()
+def start_operation(stop_event):
+    devices = get_connected_devices()
+    device_instances = [initialize_device(device_id) for device_id in devices]
 
-root.mainloop()
+    for device in device_instances:
+        threading.Thread(target=swipe_videos, args=(device, stop_event)).start()
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    stop_event = threading.Event()
+    try:
+        start_operation(stop_event)
+    except KeyboardInterrupt:
+        stop_event.set()
