@@ -6,10 +6,10 @@ from paddleocr import PaddleOCR
 from PIL import Image
 import io
 import uiautomator2 as u2
+from uiautomator2 import Direction
 
 # 初始化OCR
 ocr = PaddleOCR(use_angle_cls=True, lang='ch')
-
 
 def fine_fish(device, stop_event, update_recognition_count):
     video_count = 0
@@ -65,7 +65,7 @@ def fine_fish(device, stop_event, update_recognition_count):
 
             if not result or not result[0]:
                 logging.warning(f"设备 {device.serial} OCR 结果为空或无效，跳过该次循环")
-                device.swipe(580, 1620, 570, 269, 0.3)  # 优化后的滑动操作
+                device.swipe_ext(Direction.FORWARD, scale=0.9)  # 使用 swipe_ext 函数进行滑动
                 time.sleep(watch_time)
                 continue
 
@@ -99,17 +99,17 @@ def fine_fish(device, stop_event, update_recognition_count):
 
                             logging.info(f"设备 {device.serial} 退出直播间")
                             device(resourceId="com.ss.android.ugc.aweme:id/root").click()
-                            device.swipe(580, 1620, 570, 269, 0.3)  # 退出直播间后滑动一次
+                            device.swipe_ext(Direction.FORWARD, scale=0.9)  # 退出直播间后滑动一次
                         else:
                             logging.warning(f"设备 {device.serial} 未检测到进入直播间控件，继续滑动")
                     except Exception as inner_e:
                         logging.error(f"处理设备 {device.serial} 时发生错误: {inner_e}")
 
                 time.sleep(random.randint(1, 3))  # 随机等待1-3秒后滑动
-                device.swipe(580, 1620, 570, 269, 0.3)
+                device.swipe_ext(Direction.FORWARD, scale=0.9)
             else:
                 logging.info(f"设备 {device.serial} 识别结果不包含关键字，继续滑动视频")
-                device.swipe(580, 1620, 570, 269, 0.3)
+                device.swipe_ext(Direction.FORWARD, scale=0.9)
 
             time.sleep(watch_time)
             if stop_event.is_set():
@@ -117,7 +117,6 @@ def fine_fish(device, stop_event, update_recognition_count):
         except Exception as e:
             logging.error(f"处理设备 {device.serial} 时发生错误: {e}")
             time.sleep(5)
-
 
 def swipe_videos(device, stop_event):
     video_count = 0
@@ -137,6 +136,6 @@ def swipe_videos(device, stop_event):
             f"设备 {device.serial} 正在观看第 {video_count} 个视频，观看时间: {watch_time} 秒，总观看时间: {total_watch_time} 秒")
 
         time.sleep(watch_time)
-        device.swipe(580, 1620, 570, 269, 0.3)  # 优化后的滑动操作
+        device.swipe_ext(Direction.FORWARD, scale=0.9)  # 使用 swipe_ext 函数进行滑动
         if stop_event.is_set():
             break
