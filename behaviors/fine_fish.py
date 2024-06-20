@@ -65,16 +65,14 @@ def fine_fish(device, stop_event, update_recognition_count):
 
             if not result or not result[0]:
                 logging.warning(f"设备 {device.serial} OCR 结果为空或无效，跳过该次循环")
-                device.swipe(597, 1803, 591, 498, 0.5)  # 优化后的滑动操作
+                device.swipe(542, 1878, 606, 362, 0.1)  # 优化后的滑动操作
                 time.sleep(watch_time)
                 continue
 
             texts = [line[1][0] for line in result[0]]
             logging.info(f"OCR识别文本: {texts}")
 
-            if any(keyword in text for text in texts for keyword in
-                   ["积分池", "羊羊对决", "召唤", "弹幕游戏", "互动游戏", "弹幕互动", "互动弹幕游戏", "推力", "连胜",
-                    "积分"]):
+            if any(keyword in text for text in texts for keyword in ["积分池", "羊羊对决", "召唤", "弹幕游戏", "互动游戏", "弹幕互动", "互动弹幕游戏", "推力", "连胜", "积分"]):
                 logging.info(f"设备 {device.serial} 识别结果包含关键字，点击控件")
                 update_recognition_count()
                 time.sleep(random.randint(1, 3))  # 随机等待1-3秒后点击
@@ -83,7 +81,7 @@ def fine_fish(device, stop_event, update_recognition_count):
                 except Exception as e:
                     logging.info(f"当前视频检测为“简易直播间”类型，稍后进入直播间，观看直播。")
                     try:
-                        device(resourceId="com.ss.android.ugc.aweme:id/iw2").click()
+                        device.xpath('//*[@text="点击进入直播间"]').click()
                         time.sleep(random.randint(5, 10))  # 随机等待进入直播间
 
                         # 检测是否进入直播间
@@ -101,17 +99,17 @@ def fine_fish(device, stop_event, update_recognition_count):
 
                             logging.info(f"设备 {device.serial} 退出直播间")
                             device(resourceId="com.ss.android.ugc.aweme:id/root").click()
-                            device.swipe(597, 1803, 591, 498, 0.5)  # 退出直播间后滑动一次
+                            device.swipe(542, 1878, 606, 362, 0.1)  # 退出直播间后滑动一次
                         else:
                             logging.warning(f"设备 {device.serial} 未检测到进入直播间控件，继续滑动")
                     except Exception as inner_e:
                         logging.error(f"处理设备 {device.serial} 时发生错误: {inner_e}")
 
                 time.sleep(random.randint(1, 3))  # 随机等待1-3秒后滑动
-                device.swipe(597, 1803, 591, 498, 0.5)
+                device.swipe(542, 1878, 606, 362, 0.1)
             else:
                 logging.info(f"设备 {device.serial} 识别结果不包含关键字，继续滑动视频")
-                device.swipe(597, 1803, 591, 498, 0.5)
+                device.swipe(542, 1878, 606, 362, 0.1)
 
             time.sleep(watch_time)
             if stop_event.is_set():
@@ -139,6 +137,6 @@ def swipe_videos(device, stop_event):
             f"设备 {device.serial} 正在观看第 {video_count} 个视频，观看时间: {watch_time} 秒，总观看时间: {total_watch_time} 秒")
 
         time.sleep(watch_time)
-        device.swipe(597, 1803, 591, 498, 0.5)  # 优化后的滑动操作
+        device.swipe(542, 1878, 606, 362, 0.1)  # 优化后的滑动操作
         if stop_event.is_set():
             break
